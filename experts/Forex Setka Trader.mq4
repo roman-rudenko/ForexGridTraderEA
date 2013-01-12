@@ -15,6 +15,7 @@ extern double TrailStop = 18.0;
 extern int MaxOpenOrders = 15;
 extern bool SafeEquityStopOut = FALSE;
 extern double SafeEquityRisk = 0.5;
+extern double MaxDropdown = 25000;
 extern double Slippage = 3.0;
 extern int MagicNumber = 2024536;
 extern bool FreezeAfterTP = FALSE;
@@ -154,7 +155,7 @@ int start() {
    gt_292 = Time[0];
    double ld_44 = f0_6();
    if (SafeEquityStopOut) {
-      if (ld_44 < 0.0 && MathAbs(ld_44) > SafeEquityRisk / 100.0 * f0_9()) {
+      if (ld_44 < 0.0 && MathAbs(ld_44) > MaxDropdown) {
          f0_4();
          Print("Closed All due to EQUITY STOP-OUT");
          gi_344 = FALSE;
@@ -590,14 +591,6 @@ void f0_18(int ai_0, int ai_4, double ad_8) {
          }
       }
    }
-}
-
-double f0_9() {
-   if (f0_16() == 0) gd_356 = AccountEquity();
-   if (gd_356 < gd_364) gd_356 = gd_364;
-   else gd_356 = AccountEquity();
-   gd_364 = AccountEquity();
-   return (gd_356);
 }
 
 double f0_2() {
