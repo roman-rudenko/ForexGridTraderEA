@@ -1,9 +1,11 @@
-// ApM Modded v002 05/09/2012
-#property copyright "Fxsourcecode © 2012, Forex Source Code Inc."
-#property link      "http://www.forexsourcecode.net"
+// ApM Modded v006 05/11/2012
+#property copyright "Copyleft 2012"
+#property link      "http://www.net"
 
+string modver = "M6 (TLP public)";
 extern bool ShowTradeComment = TRUE;
-extern double Lots = 0.02;
+//extern bool RealtimeChartUpdate = FALSE;
+extern double Lots = 0.01;
 extern double MultiLotsFactor = 1.6;
 extern double StepLots = 15.0;
 extern double TakeProfit = 23.0;
@@ -25,6 +27,7 @@ extern int StopHour = 0;
 extern int StopMinute = 0;
 extern int StartingTradeDay = 0;
 extern int EndingTradeDay = 7;
+/*extern*/ bool UseLotFix = TRUE;
 bool gi_184 = FALSE;
 double gd_188 = 48.0;
 double gd_196 = 500.0;
@@ -40,7 +43,7 @@ double gd_256;
 double gd_264;
 double gd_272;
 double gd_280;
-bool gi_HaveOpenOrders;
+bool gi_HaveNewOpenOrders;
 int gt_292 = 0;
 int gi_296;
 int gi_300 = 0;
@@ -58,13 +61,14 @@ int gi_352 = 0;
 double gd_356;
 double gd_364;
 string gs_off_372 = "OFF";
-string gs_live_380 = "LIVE";
+string gs_live_380 = "REAL";
 string gs_396 = "";
 bool gi_408 = TRUE;
 bool gi_412 = TRUE;
 int gi_416 = 0;
 int gi_420;
 int gStartMinutes, gStopMinutes;
+double PipToTP, MaxDD = 0;
 
 bool IsTradeTime() {
   if (FreezeAfterTP) return(false);
@@ -149,8 +153,9 @@ int start() {
          gi_344 = FALSE;
       }
    }
+   gi_HaveNewOpenOrders = FALSE;
    gi_OrdersOpen = f0_16();
-   if (gi_OrdersOpen == 0) gi_HaveOpenOrders = FALSE;
+   //if (gi_OrdersOpen == 0) gi_HaveNewOpenOrders = FALSE;
    for (gi_312 = OrdersTotal() - 1; gi_312 >= 0; gi_312--) {
       OrderSelect(gi_312, SELECT_BY_POS, MODE_TRADES);
       if (OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
@@ -179,8 +184,9 @@ int start() {
       li_52 = func1(gi_332, gi_336, Bid, Ask, gd_264, gd_272, Point, StepLots, gi_420);
       if (li_52 == 1) gi_328 = TRUE;
       gs_396 = f0_12(3);
-      gi_300 = gi_OrdersOpen; //mod 002
    }
+   if (gi_OrdersOpen > 1 && UseLotFix) gi_300 = gi_OrdersOpen-1;
+   gd_304 = f0_14(OP_SELL);
    if (gi_OrdersOpen < 1) {
       gi_336 = FALSE;
       gi_332 = FALSE;
@@ -287,25 +293,27 @@ int start() {
             if (OrderType() == OP_BUY) {
                gd_224 = gd_240 + TakeProfit * Point * gi_420;
                gd_320 = gd_240 - gd_196 * Point * gi_420;
-               gi_HaveOpenOrders = TRUE;
+               gi_HaveNewOpenOrders = TRUE;
             }
          }
          if (OrderSymbol() == Symbol() && OrderMagicNumber() == MagicNumber) {
             if (OrderType() == OP_SELL) {
                gd_224 = gd_240 - TakeProfit * Point * gi_420;
                gd_320 = gd_240 + gd_196 * Point * gi_420;
-               gi_HaveOpenOrders = TRUE;
+               gi_HaveNewOpenOrders = TRUE;
             }
          }
       }
    }
    if (gi_344) {
-      if (gi_HaveOpenOrders == TRUE) {
+      if (gi_HaveNewOpenOrders == TRUE) {
          for (gi_312 = OrdersTotal() - 1; gi_312 >= 0; gi_312--) {
             OrderSelect(gi_312, SELECT_BY_POS, MODE_TRADES);
             if (OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
+            if (NormalizeDouble(gd_224, Digits) == NormalizeDouble(OrderTakeProfit(), Digits)) continue;
             if (OrderSymbol() == Symbol() && OrderMagicNumber() == MagicNumber) OrderModify(OrderTicket(), gd_240, OrderStopLoss(), gd_224, 0, Yellow);
-            gi_344 = FALSE;
+            Sleep(3000);
+            if (OrderTakeProfit() > 0) gi_344 = FALSE;
          }
       }
    }
@@ -315,6 +323,7 @@ int start() {
 
 void f0_13() {
    if (ShowTradeComment) {
+      if (IsTesting() && !IsVisualMode()) return;
       if (ObjectFind("BG") < 0) {
          ObjectCreate("BG", OBJ_LABEL, 0, 0, 0);
          ObjectSetText("BG", "g", 210, "Webdings", Orange);
@@ -443,12 +452,17 @@ double f0_14(int ai_0) {
 }
 
 int f0_16() {
+   PipToTP = 0;
    int li_0 = 0;
    for (int li_4 = OrdersTotal() - 1; li_4 >= 0; li_4--) {
       OrderSelect(li_4, SELECT_BY_POS, MODE_TRADES);
       if (OrderSymbol() != Symbol() || OrderMagicNumber() != MagicNumber) continue;
       if (OrderSymbol() == Symbol() && OrderMagicNumber() == MagicNumber)
          if (OrderType() == OP_SELL || OrderType() == OP_BUY) li_0++;
+         if (OrderTakeProfit() == 0) {gi_344 = TRUE; gi_HaveNewOpenOrders = TRUE;}
+         if (OrderTakeProfit() > 0.0 && PipToTP == 0) {
+         if (OrderType() == OP_SELL) PipToTP = (Ask - OrderTakeProfit() ) / Point / gi_420;
+         if (OrderType() == OP_BUY) PipToTP = (OrderTakeProfit() - Bid) / Point / gi_420;}
    }
    return (li_0);
 }
@@ -467,6 +481,7 @@ void f0_4() {
 }
 
 int fOrderSend(int ai_0, double ad_4, double ad_12, int ai_20, double ad_24, int ai_32, int ai_36, string as_40, int ai_48, int ai_52, color ai_56) {
+   if (gi_OrdersOpen >= MaxOpenOrders) return;
    int li_60 = 0;
    int li_64 = 0;
    int li_68 = 0;
@@ -604,15 +619,17 @@ double f0_7() {
 }
 
 void f0_3() {
+   string ls_1 = "", ls_2 = "", ls_3 = "";
    string ls_0 = DoubleToStr(balanceDeviation(), 2);
-   string ls_1 = "";
+   if (balanceDeviation() > MaxDD) MaxDD = balanceDeviation();
+   ls_3 = "Margin Usage:                            " + DoubleToStr(100 - (AccountFreeMargin()/AccountBalance()*100),2) + "%\n";
    if (!IsTradeTime()) ls_1 = "New Trades disallowed by scheduler";
    if (FreezeAfterTP) ls_1 = "Freeze AfterTP Enabled";
    Comment("" 
       + "\n" 
       + "\n" 
       + "\n" 
-      + "EXPERT VERSION: 1.0" 
+      + "EXPERT VERSION: 1.0 " + modver
       + "\n" 
       + "=======================================" 
       //+ "\n" 
@@ -650,19 +667,30 @@ void f0_3() {
       + "\n" 
       + "------------------------------------------------------------------------------------" 
       + "\n" 
-      + "SAFE EQUITY STOP OUT :        " + gs_off_372 
+      + "SAFE EQUITY STOP OUT :        " + gs_off_372 + "  @ " + DoubleToStr(SafeEquityRisk*100, 2)  + "%"
       + "\n" 
-      + "SAFE EQUITY RISK % :             " + DoubleToStr(SafeEquityRisk, 2) 
+      //+ "SAFE EQUITY RISK % :             " + DoubleToStr(SafeEquityRisk, 2) 
+      //+ "\n" 
+      + ls_2
+      + "NEXT LOT(S) :                            " + DoubleToStr(gd_304, 2)
       + "\n" 
-      + "NEXT LOT(S) :                            " + DoubleToStr(gd_304, 2) 
+      + "OPEN TRADES :                         " + DoubleToStr(f0_8(), 0) + " / " + MaxOpenOrders
       + "\n" 
-      + "OPEN TRADES :                         " + DoubleToStr(f0_8(), 0) 
-      + "\n" 
-      + "FLOATING P/L :                         " + DoubleToStr(AccountProfit(), 2) 
-      + "\n" 
+      + "FLOATING P/L :                          " + DoubleToStr(AccountProfit(), 2) 
+      + "\n"
+//      + "CURRENT PROFIT:                     " + DoubleToStr(CurProfit, 2) 
+//      + "\n" 
+//      + "POTENTIAL PROFIT:                  " + DoubleToStr(PotProfit, 2) 
+//      + "\n"
+      + "Pips To TP:                                  " + DoubleToStr(PipToTP, 1) 
+      + "\n"      
       + "=======================================\n"
-      + "Drawdown :                               " + ls_0 + "%" + "\n"
-      + "Total Profit/Loss :                        " + DoubleToStr(calculatePLBalance(),2) + "\n"
+      + "Drawdown :                               " + ls_0 + "%"
+      + "\n"
+      + "Drawdown (Max) :                      " + DoubleToStr(MaxDD,2) + "%"
+      + "\n"
+      + ls_3
+      + "Total Profit/Loss :                        " + DoubleToStr(calculatePLBalance(),2) + "\n"      
       + ls_1
       );
 }
