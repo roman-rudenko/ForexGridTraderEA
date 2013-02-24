@@ -1,12 +1,12 @@
-// ApM Modded v006 05/11/2012
+// ApM Modded v007 07/11/2012
 // Modify by Ixide 23/02/2013
 #property copyright "Copyleft 2013"
 #property link      "http://www.net"
 
-string modver = "M6 (TLP public)";
+string modver = "M7 (TLP public)";
 extern bool ShowTradeComment = TRUE;
-//extern bool RealtimeChartUpdate = FALSE;
 extern int TypeCalculationLots = 3;
+//extern bool RealtimeChartUpdate = FALSE;
 extern double Lots = 0.01;
 extern double MultiLotsFactor = 1.6;
 extern double StepLots = 15.0;
@@ -30,6 +30,11 @@ extern int StopMinute = 0;
 extern int StartingTradeDay = 0;
 extern int EndingTradeDay = 7;
 /*extern*/ bool UseLotFix = TRUE;
+extern double Grid_Ariphmetic = 0;
+extern double Grid_Multiplier = 0;
+extern double Grid_Ratio = 0;
+double Original_TP;
+double Original_EP;
 bool gi_184 = FALSE;
 double gd_188 = 48.0;
 double gd_196 = 500.0;
@@ -85,6 +90,8 @@ bool IsTradeTime() {
 }   
 
 int init() {
+   Original_TP = TakeProfit;
+   Original_EP = StepLots;
    if (Digits == 2 || Digits == 4) gi_420 = 1;
    else gi_420 = 10;
    gi_416 = AccountNumber();
@@ -178,6 +185,23 @@ int start() {
       }
    }
    gi_328 = FALSE;
+   
+   if (gi_OrdersOpen > 1 && UseLotFix) gi_300 = gi_OrdersOpen-1;
+   gd_304 = f0_14(OP_SELL);
+   
+   // Grid Extender
+   if (Grid_Ariphmetic + Grid_Multiplier > 0 && gi_OrdersOpen > 1) {
+      if (Grid_Ariphmetic > 0) {
+         StepLots = Original_EP + (Grid_Ariphmetic * gi_300);
+         TakeProfit = Original_TP + (Grid_Ariphmetic * gi_300);
+         if (Grid_Ratio > 0) TakeProfit = TakeProfit * Grid_Ratio;
+                               } else {
+      if (Grid_Multiplier > 0) {
+         StepLots = Original_EP * (Grid_Ariphmetic * gi_300);
+         TakeProfit = Original_TP * (Grid_Ariphmetic * gi_300);
+         if (Grid_Ratio > 0) TakeProfit = TakeProfit * Grid_Ratio;}}
+                                               } // Grid Extender
+                                                  
    if (gi_OrdersOpen > 0 && gi_OrdersOpen <= MaxOpenOrders) {
       RefreshRates();
       gd_264 = f0_2();
@@ -186,8 +210,6 @@ int start() {
       if (li_52 == 1) gi_328 = TRUE;
       gs_396 = f0_12(3);
    }
-   if (gi_OrdersOpen > 1 && UseLotFix) gi_300 = gi_OrdersOpen-1;
-   gd_304 = f0_14(OP_SELL);
    if (gi_OrdersOpen < 1) {
       gi_336 = FALSE;
       gi_332 = FALSE;
@@ -418,7 +440,7 @@ int f0_1(bool ai_0 = TRUE, bool ai_4 = TRUE) {
    return (li_8);
 }
 
-double f0_14(int cmd) {
+double f0_14(int ai_0) {
    double lot;
    int li_12;
    switch (TypeCalculationLots) {
@@ -458,7 +480,7 @@ double f0_14(int cmd) {
      lot = NormalizeDouble(Lots * f, LotExp);
      break;  
    }
-   if (AccountFreeMarginCheck(Symbol(), cmd, lot) <= 0.0) return (-1);
+   if (AccountFreeMarginCheck(Symbol(), ai_0, lot) <= 0.0) return (-1);
    if (GetLastError() == 134/* NOT_ENOUGH_MONEY */) return (-2);
    return (lot);
 }
