@@ -41,6 +41,7 @@ extern int TradingType = 0;
    // 3 - Open Long and Short positions use magic for BUY - MagicNumber and magic for SELL - AdvMagicNumber
 extern string ____________ = "Настройки разделённой торговли";
 extern int AdvMagicNumber = 2024537;
+extern int TypeCalculationLotsSELL = 3;
 extern double LotsSELL = 0.01;
 extern double MultiLotsFactorSELL = 1.6;
 extern double StepLotsSELL = 15.0;
@@ -482,15 +483,18 @@ int CloseAllOrdersBS(bool onlyBUY, bool onlySELL, int magic) {
 
 double CalcLot(int cmd, int magic, int tt) {
    double lot,xlot,xMultiLotsFactor;
+   int xTypeCalculationLots;
    int ocTime;
    if (TradingType==3 && tt==1){
+         xTypeCalculationLots = TypeCalculationLotsSELL;
          xMultiLotsFactor=MultiLotsFactorSELL;
          xlot = LotsSELL;
        } else {
+           xTypeCalculationLots = TypeCalculationLots;
            xlot = Lots;
            xMultiLotsFactor=MultiLotsFactor;
          }  
-   switch (TypeCalculationLots) {
+   switch (xTypeCalculationLots) {
    case 0:
       lot = xlot;
       break;
