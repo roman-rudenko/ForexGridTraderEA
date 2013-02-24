@@ -37,7 +37,16 @@ extern int TradingType = 0;
    // 1 - Open only Long position use magic number - MagicNumber
    // 2 - Open only Short position use magic number - MagicNumber
    // 3 - Open Long and Short positions use magic for BUY - MagicNumber and magic for SELL - AdvMagicNumber
+extern string ____________ = "Настройки разделённой торговли";
 extern int AdvMagicNumber = 2024537;
+extern double LotsSELL = 0.01;
+extern double MultiLotsFactorSELL = 1.6;
+extern double StepLotsSELL = 15.0;
+extern double TakeProfitSELL = 23.0;
+extern bool UseTrailingSELL = FALSE;
+extern double TrailStartSELL = 38.0;
+extern double TrailStopSELL = 18.0;
+extern int MaxOpenOrdersSELL = 15;
 bool CloseAllOrdersBeforeStart = FALSE;
 double gd_188 = 48.0;
 double gd_196 = 500.0;
@@ -94,9 +103,9 @@ bool IsTradeTime() {
 
 int init() {
    xTakeProfit[0] = TakeProfit;
-   xTakeProfit[1] = TakeProfit;
+   xTakeProfit[1] = TakeProfitSELL;
    xStepLots[0] = StepLots;
-   xStepLots[1] = StepLots;
+   xStepLots[1] = StepLotsSELL;
    if (Digits == 2 || Digits == 4) xPoints = 1;
    else xPoints = 10;
 //   gi_416 = AccountNumber();
@@ -156,12 +165,27 @@ int Processing(int tt, int magic){
    double sellLots;
    double bClose2;
    double bClose1;
+   double xMultiLotsFactor;
+   int xMaxOpenOrders;
+   double xSL,xTP;
    int li_52;
    int i = 0;
 
+   if (TradingType == 3 && tt == 1){
+       xMultiLotsFactor=MultiLotsFactorSELL;
+       xSL=StepLotsSELL;
+       xTP=TakeProfitSELL;
+       xMaxOpenOrders=MaxOpenOrdersSELL;
+     } else{
+         xMultiLotsFactor=MultiLotsFactor;
+         xSL=StepLots;
+         xTP=TakeProfit;
+         xMaxOpenOrders=MaxOpenOrders;
+       }
    if (Close_All_Orders == TRUE) {CloseAllOrders(magic); return (0);}
    
-   if (UseTrailing) Trail(TrailStart, TrailStop, orderPrice[tt], magic);
+   if (UseTrailing && tt!=1) Trail(TrailStart, TrailStop, orderPrice[tt], magic);
+     else if (UseTrailingSELL && tt==1) Trail(TrailStartSELL, TrailStopSELL, orderPrice[tt], magic);
    if (CloseAllOrdersBeforeStart) {
       if (TimeCurrent() >= CurrentTime[tt]) {
          CloseAllOrders(magic);
@@ -209,21 +233,21 @@ int Processing(int tt, int magic){
    // Grid Extender
    if (Grid_Ariphmetic + Grid_Multiplier > 0 && gi_OrdersOpen[tt] > 1) {
       if (Grid_Ariphmetic > 0) {
-         xStepLots[tt] = StepLots + (Grid_Ariphmetic * gi_300[tt]);
-         xTakeProfit[tt] = TakeProfit + (Grid_Ariphmetic * gi_300[tt]);
+         xStepLots[tt] = xSL + (Grid_Ariphmetic * gi_300[tt]);
+         xTakeProfit[tt] = xTP + (Grid_Ariphmetic * gi_300[tt]);
          if (Grid_Ratio > 0) xTakeProfit[tt] = xTakeProfit[tt] * Grid_Ratio;
                                } else {
       if (Grid_Multiplier > 0) {
-         xStepLots[tt] = StepLots * (Grid_Ariphmetic * gi_300[tt]);
-         xTakeProfit[tt] = TakeProfit * (Grid_Ariphmetic * gi_300[tt]);
+         xStepLots[tt] = xSL * (Grid_Ariphmetic * gi_300[tt]);
+         xTakeProfit[tt] = xTP * (Grid_Ariphmetic * gi_300[tt]);
          if (Grid_Ratio > 0) xTakeProfit[tt] = xTakeProfit[tt] * Grid_Ratio;}}
                                                } // Grid Extender
                                                   
-   if (gi_OrdersOpen[tt] > 0 && gi_OrdersOpen[tt] <= MaxOpenOrders) {
+   if (gi_OrdersOpen[tt] > 0 && gi_OrdersOpen[tt] <= xMaxOpenOrders) {
       RefreshRates();
       LastBuyOrderPrice = GetPriceLastOrder(OP_BUY, magic);
       LastSellOrderPrice = GetPriceLastOrder(OP_SELL, magic);
-      li_52 = func1(gi_332[tt], gi_336[tt], Bid, Ask, LastBuyOrderPrice, LastSellOrderPrice, Point, StepLots, xPoints);
+      li_52 = func1(gi_332[tt], gi_336[tt], Bid, Ask, LastBuyOrderPrice, LastSellOrderPrice, Point, xSL, xPoints);
       if (li_52 == 1) gi_328[tt] = TRUE;
       stErr = ReturnErrorMsg(3);
    }
@@ -239,7 +263,7 @@ int Processing(int tt, int magic){
       if (gi_336[tt]) {
          if (gi_216) {
             CloseAllOrdersBS(false, true, magic);
-            opLot[tt] = NormalizeDouble(MultiLotsFactor * sellLots, LotExp);
+            opLot[tt] = NormalizeDouble(xMultiLotsFactor * sellLots, LotExp);
          } else opLot[tt] = CalcLot(OP_SELL, magic, tt);
          if (gi_212) {
             gi_300[tt] = gi_OrdersOpen[tt];
@@ -259,7 +283,7 @@ int Processing(int tt, int magic){
          if (gi_332[tt]) {
             if (gi_216) {
                CloseAllOrdersBS(true, false, magic);
-               opLot[tt] = NormalizeDouble(MultiLotsFactor * buyLots, LotExp);
+               opLot[tt] = NormalizeDouble(xMultiLotsFactor * buyLots, LotExp);
             } else opLot[tt] = CalcLot(OP_BUY, magic, tt);
             if (gi_212) {
                gi_300[tt] = gi_OrdersOpen[tt];
@@ -329,14 +353,14 @@ int Processing(int tt, int magic){
          if (OrderSymbol() != Symbol() || OrderMagicNumber() != magic) continue;
          if (OrderSymbol() == Symbol() && OrderMagicNumber() == magic) {
             if (OrderType() == OP_BUY) {
-               newProffit[tt] = orderPrice[tt] + TakeProfit * Point * xPoints;
+               newProffit[tt] = orderPrice[tt] + xTP * Point * xPoints;
 //               gd_320 = orderPrice[tt] - gd_196 * Point * xPoints;
                gi_HaveNewOpenOrders[tt] = TRUE;
             }
          }
          if (OrderSymbol() == Symbol() && OrderMagicNumber() == magic) {
             if (OrderType() == OP_SELL) {
-               newProffit[tt] = orderPrice[tt] - TakeProfit * Point * xPoints;
+               newProffit[tt] = orderPrice[tt] - xTP * Point * xPoints;
 //               gd_320 = orderPrice[tt] + gd_196 * Point * xPoints;
                gi_HaveNewOpenOrders[tt] = TRUE;
             }
@@ -456,28 +480,35 @@ int CloseAllOrdersBS(bool onlyBUY, bool onlySELL, int magic) {
 }
 
 double CalcLot(int cmd, int magic, int tt) {
-   double lot;
+   double lot,xlot,xMultiLotsFactor;
    int ocTime;
+   if (TradingType==3 && tt==1){
+         xMultiLotsFactor=MultiLotsFactorSELL;
+         xlot = LotsSELL;
+       } else {
+           xlot = Lots;
+           xMultiLotsFactor=MultiLotsFactor;
+         }  
    switch (TypeCalculationLots) {
    case 0:
-      lot = Lots;
+      lot = xlot;
       break;
    case 1:
-      lot = NormalizeDouble(Lots * MathPow(MultiLotsFactor, gi_300[tt]), LotExp);
+      lot = NormalizeDouble(xlot * MathPow(xMultiLotsFactor, gi_300[tt]), LotExp);
       break;
    case 2:
       ocTime = 0;
-      lot = Lots;
+      lot = xlot;
       for (int i = OrdersHistoryTotal() - 1; i >= 0; i--) {
          if (!(OrderSelect(i, SELECT_BY_POS, MODE_HISTORY))) return (-3);
          if (OrderSymbol() == Symbol() && OrderMagicNumber() == magic) {
             if (ocTime < OrderCloseTime()) {
                ocTime = OrderCloseTime();
                if (OrderProfit() < 0.0) {
-                  lot = NormalizeDouble(OrderLots() * MultiLotsFactor, LotExp);
+                  lot = NormalizeDouble(OrderLots() * xMultiLotsFactor, LotExp);
                   continue;
                }
-               lot = Lots;
+               lot = xlot;
                continue;
                return (-3);
             }
