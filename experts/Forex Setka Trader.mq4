@@ -95,7 +95,7 @@ int init() {
    else gi_420 = 10;
    gi_416 = AccountNumber();
    gd_280 = MarketInfo(Symbol(), MODE_SPREAD) * Point * gi_420;
-   switch (MarketInfo(Symbol(), MODE_MINLOT)) {
+   switch (MarketInfo(Symbol(), MODE_LOTSTEP)) {
    case 0.001:
       gd_204 = 3;
       break;
