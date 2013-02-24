@@ -1,10 +1,12 @@
 // ApM Modded v006 05/11/2012
-#property copyright "Copyleft 2012"
+// Modify by Ixide 23/02/2013
+#property copyright "Copyleft 2013"
 #property link      "http://www.net"
 
 string modver = "M6 (TLP public)";
 extern bool ShowTradeComment = TRUE;
 //extern bool RealtimeChartUpdate = FALSE;
+extern int TypeCalculationLots = 3;
 extern double Lots = 0.01;
 extern double MultiLotsFactor = 1.6;
 extern double StepLots = 15.0;
@@ -31,10 +33,9 @@ extern int EndingTradeDay = 7;
 bool gi_184 = FALSE;
 double gd_188 = 48.0;
 double gd_196 = 500.0;
-double gd_204 = 0.0;
+double LotExp = 0.0;
 bool gi_212 = TRUE;
 bool gi_216 = FALSE;
-int gi_220 = 1;
 double gd_224;
 double gd_232;
 double gd_240;
@@ -90,16 +91,16 @@ int init() {
    gd_280 = MarketInfo(Symbol(), MODE_SPREAD) * Point * gi_420;
    switch (MarketInfo(Symbol(), MODE_MINLOT)) {
    case 0.001:
-      gd_204 = 3;
+      LotExp = 3;
       break;
    case 0.01:
-      gd_204 = 2;
+      LotExp = 2;
       break;
    case 0.1:
-      gd_204 = 1;
+      LotExp = 1;
       break;
    case 1.0:
-      gd_204 = 0;
+      LotExp = 0;
    }
    if (SafeEquityStopOut) gs_off_372 = "ON";
    if (IsDemo()) gs_live_380 = "DEMO";
@@ -199,7 +200,7 @@ int start() {
       if (gi_336) {
          if (gi_216) {
             f0_1(0, 1);
-            gd_304 = NormalizeDouble(MultiLotsFactor * ld_20, gd_204);
+            gd_304 = NormalizeDouble(MultiLotsFactor * ld_20, LotExp);
          } else gd_304 = f0_14(OP_SELL);
          if (gi_212) {
             gi_300 = gi_OrdersOpen;
@@ -219,7 +220,7 @@ int start() {
          if (gi_332) {
             if (gi_216) {
                f0_1(1, 0);
-               gd_304 = NormalizeDouble(MultiLotsFactor * ld_12, gd_204);
+               gd_304 = NormalizeDouble(MultiLotsFactor * ld_12, LotExp);
             } else gd_304 = f0_14(OP_BUY);
             if (gi_212) {
                gi_300 = gi_OrdersOpen;
@@ -417,38 +418,49 @@ int f0_1(bool ai_0 = TRUE, bool ai_4 = TRUE) {
    return (li_8);
 }
 
-double f0_14(int ai_0) {
-   double ld_4;
+double f0_14(int cmd) {
+   double lot;
    int li_12;
-   switch (gi_220) {
+   switch (TypeCalculationLots) {
    case 0:
-      ld_4 = Lots;
+      lot = Lots;
       break;
    case 1:
-      ld_4 = NormalizeDouble(Lots * MathPow(MultiLotsFactor, gi_300), gd_204);
+      lot = NormalizeDouble(Lots * MathPow(MultiLotsFactor, gi_300), LotExp);
       break;
    case 2:
       li_12 = 0;
-      ld_4 = Lots;
+      lot = Lots;
       for (int li_20 = OrdersHistoryTotal() - 1; li_20 >= 0; li_20--) {
          if (!(OrderSelect(li_20, SELECT_BY_POS, MODE_HISTORY))) return (-3);
          if (OrderSymbol() == Symbol() && OrderMagicNumber() == MagicNumber) {
             if (li_12 < OrderCloseTime()) {
                li_12 = OrderCloseTime();
                if (OrderProfit() < 0.0) {
-                  ld_4 = NormalizeDouble(OrderLots() * MultiLotsFactor, gd_204);
+                  lot = NormalizeDouble(OrderLots() * MultiLotsFactor, LotExp);
                   continue;
                }
-               ld_4 = Lots;
+               lot = Lots;
                continue;
                return (-3);
             }
          }
       }
+   case 3: //Вычисляем лот по методу Фибоначчи
+     int f = 1;
+     int oldx = 0;
+     int newx = 1;
+     for (int xx = 0; xx <= gi_300; xx++){
+       f = oldx + newx;
+       oldx = newx;
+       newx = f;
+     }
+     lot = NormalizeDouble(Lots * f, LotExp);
+     break;  
    }
-   if (AccountFreeMarginCheck(Symbol(), ai_0, ld_4) <= 0.0) return (-1);
+   if (AccountFreeMarginCheck(Symbol(), cmd, lot) <= 0.0) return (-1);
    if (GetLastError() == 134/* NOT_ENOUGH_MONEY */) return (-2);
-   return (ld_4);
+   return (lot);
 }
 
 int f0_16() {
